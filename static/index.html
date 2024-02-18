@@ -2,110 +2,108 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic-Tac-Toe Game</title>
     <style>
-        .grid-container {
+        #board {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            width: 300px;
+            grid-template-columns: repeat(3, 100px);
+            grid-gap: 5px;
             margin: 20px auto;
+            max-width: 300px;
         }
-        .grid-item {
+        .cell {
+            width: 100px;
+            height: 100px;
             background-color: #f0f0f0;
-            border: 1px solid #444;
-            padding: 50px;
-            font-size: 30px;
-            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
             cursor: pointer;
-        }
-        #gameControls {
-            text-align: center;
-            margin-top: 20px;
         }
     </style>
 </head>
 <body>
-    <h2 style="text-align: center;">Tic-Tac-Toe</h2>
-    <div id="gameControls">
-        <button onclick="createNewGame()">Create New Game</button>
-        <input type="text" id="gameIdInput" placeholder="Enter Game ID">
-        <button onclick="joinGame()">Join Game</button>
-    </div>
-    <div id="gameBoard" class="grid-container"></div>
+    <h2>Tic-Tac-Toe Game</h2>
+    <button id="newGameBtn">New Game</button>
+    <input type="text" id="gameId" placeholder="Enter Game ID">
+    <button id="joinGameBtn">Join Game</button>
+    <div id="board"></div>
 
     <script>
-        const gameBoard = document.getElementById('gameBoard');
-        const gameIdInput = document.getElementById('gameIdInput');
-        let currentGameId = null;
+        const boardElement = document.getElementById('board');
+        let gameId;
 
-        function createNewGame() {
+        function createBoard() {
+            boardElement.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.addEventListener('click', () => makeMove(i));
+                boardElement.appendChild(cell);
+            }
+        }
+
+        document.getElementById('newGameBtn').addEventListener('click', function() {
             fetch('/game/new', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
-                    currentGameId = data.game_id;
-                    gameIdInput.value = currentGameId;
-                    alert(`Game created! Game ID: ${currentGameId}`);
-                    resetBoard();
+                    gameId = data.game_id;
+                    document.getElementById('gameId').value = gameId;
+                    alert(`New game created. Game ID: ${gameId}`);
+                    createBoard();
                 });
-        }
+        });
 
-        function joinGame() {
-            const gameId = gameIdInput.value.trim();
-            if (gameId) {
-                currentGameId = gameId;
-                fetch(`/game/${currentGameId}/status`, { method: 'GET' })
-                    .then(response => response.json())
-                    .then(updateBoardFromGameState)
-                    .catch(() => alert('Failed to join game. Check the Game ID.'));
-            } else {
-                alert('Please enter a Game ID.');
+        document.getElementById('joinGameBtn').addEventListener('click', function() {
+            gameId = document.getElementById('gameId').value;
+            if (!gameId) {
+                alert('Please enter a game ID.');
+                return;
             }
-        }
+            alert(`Joining game: ${gameId}`);
+            createBoard();
+            fetchGameStatus();
+        });
 
         function makeMove(position) {
-            if (!currentGameId) {
+            if (!gameId) {
                 alert('Please create or join a game first.');
                 return;
             }
-            fetch(`/game/${currentGameId}/move`, {
+            fetch(`/game/${gameId}/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ position: position, player: 'X' }) // Assumindo 'X' para simplificar; ajuste conforme necessário
+                body: JSON.stringify({ position, player: 'X' }) // This assumes player X. Modify as needed.
             })
             .then(response => response.json())
-            .then(updateBoardFromGameState)
-            .catch(error => console.error('Error:', error));
-        }
-
-        function updateBoardFromGameState(gameState) {
-            gameBoard.innerHTML = '';
-            gameState.board.forEach((cell, index) => {
-                const cellElement = document.createElement('div');
-                cellElement.className = 'grid-item';
-                cellElement.textContent = cell;
-                cellElement.onclick = () => makeMove(index);
-                gameBoard.appendChild(cellElement);
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    updateBoard(data);
+                }
             });
-            if (gameState.winner || gameState.draw) {
-                let message = gameState.draw ? 'Game is a draw!' : `Player ${gameState.winner} wins!`;
-                alert(message);
-                resetBoard();
+        }
+
+        function fetchGameStatus() {
+            fetch(`/game/${gameId}/status`)
+                .then(response => response.json())
+                .then(data => updateBoard(data));
+        }
+
+        function updateBoard(gameState) {
+            gameState.board.forEach((cell, index) => {
+                boardElement.children[index].textContent = cell;
+            });
+            if (gameState.winner) {
+                alert(`Player ${gameState.winner} wins!`);
+            } else if (gameState.draw) {
+                alert('The game is a draw!');
             }
         }
 
-        function resetBoard() {
-            gameBoard.innerHTML = '';
-            for (let i = 0; i < 9; i++) {
-                const cellElement = document.createElement('div');
-                cellElement.className = 'grid-item';
-                cellElement.onclick = () => makeMove(i);
-                gameBoard.appendChild(cellElement);
-            }
-        }
-
-        resetBoard(); // Initialize the board on load
+        createBoard(); // Initialize an empty board
     </script>
 </body>
 </html>
