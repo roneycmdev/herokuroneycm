@@ -2,108 +2,61 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tic-Tac-Toe Game</title>
+    <title>Tic-Tac-Toe</title>
     <style>
-        #board {
-            display: grid;
-            grid-template-columns: repeat(3, 100px);
-            grid-gap: 5px;
-            margin: 20px auto;
-            max-width: 300px;
-        }
-        .cell {
-            width: 100px;
-            height: 100px;
-            background-color: #f0f0f0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            cursor: pointer;
-        }
+        .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 5px; }
+        .cell { width: 100px; height: 100px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 36px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h2>Tic-Tac-Toe Game</h2>
-    <button id="newGameBtn">New Game</button>
-    <input type="text" id="gameId" placeholder="Enter Game ID">
-    <button id="joinGameBtn">Join Game</button>
-    <div id="board"></div>
-
+    <h2>Tic-Tac-Toe</h2>
+    <div id="gameIdDisplay"></div>
+    <button onclick="createGame()">New Game</button>
+    <div class="board">
+        <div class="cell" onclick="makeMove(0)"></div>
+        <div class="cell" onclick="makeMove(1)"></div>
+        <div class="cell" onclick="makeMove(2)"></div>
+        <div class="cell" onclick="makeMove(3)"></div>
+        <div class="cell" onclick="makeMove(4)"></div>
+        <div class="cell" onclick="makeMove(5)"></div>
+        <div class="cell" onclick="makeMove(6)"></div>
+        <div class="cell" onclick="makeMove(7)"></div>
+        <div class="cell" onclick="makeMove(8)"></div>
+    </div>
     <script>
-        const boardElement = document.getElementById('board');
-        let gameId;
+        let currentGameId;
 
-        function createBoard() {
-            boardElement.innerHTML = '';
-            for (let i = 0; i < 9; i++) {
-                const cell = document.createElement('div');
-                cell.classList.add('cell');
-                cell.addEventListener('click', () => makeMove(i));
-                boardElement.appendChild(cell);
-            }
-        }
-
-        document.getElementById('newGameBtn').addEventListener('click', function() {
+        function createGame() {
             fetch('/game/new', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
-                    gameId = data.game_id;
-                    document.getElementById('gameId').value = gameId;
-                    alert(`New game created. Game ID: ${gameId}`);
-                    createBoard();
+                    currentGameId = data.game_id;
+                    document.getElementById('gameIdDisplay').innerText = 'Game ID: ' + currentGameId;
                 });
-        });
-
-        document.getElementById('joinGameBtn').addEventListener('click', function() {
-            gameId = document.getElementById('gameId').value;
-            if (!gameId) {
-                alert('Please enter a game ID.');
-                return;
-            }
-            alert(`Joining game: ${gameId}`);
-            createBoard();
-            fetchGameStatus();
-        });
+        }
 
         function makeMove(position) {
-            if (!gameId) {
-                alert('Please create or join a game first.');
-                return;
-            }
-            fetch(`/game/${gameId}/move`, {
+            if (!currentGameId) return alert('Create a game first!');
+            fetch(`/game/${currentGameId}/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ position, player: 'X' }) // This assumes player X. Modify as needed.
+                body: JSON.stringify({ position })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    updateBoard(data);
-                }
-            });
-        }
-
-        function fetchGameStatus() {
-            fetch(`/game/${gameId}/status`)
                 .then(response => response.json())
-                .then(data => updateBoard(data));
+                .then(updateBoard);
         }
 
-        function updateBoard(gameState) {
-            gameState.board.forEach((cell, index) => {
-                boardElement.children[index].textContent = cell;
+        function updateBoard(game) {
+            const board = document.querySelector('.board');
+            game.board.forEach((cell, index) => {
+                board.children[index].innerText = cell;
             });
-            if (gameState.winner) {
-                alert(`Player ${gameState.winner} wins!`);
-            } else if (gameState.draw) {
-                alert('The game is a draw!');
+            if (game.winner) {
+                alert(`Winner is ${game.winner}!`);
+            } else if (game.draw) {
+                alert("It's a draw!");
             }
         }
-
-        createBoard(); // Initialize an empty board
     </script>
 </body>
 </html>
