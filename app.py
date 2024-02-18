@@ -1,62 +1,82 @@
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask, jsonify, request, send_from_directory, abort
+import uuid
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='', static_folder='static')
 
-# Estado inicial do jogo
-game_state = {
-    'board': [' ' for _ in range(9)],  # Tabuleiro de jogo 3x3 como uma lista
-    'current_player': 'X',  # X começa
-    'winner': None,
-    'draw': False
-}
+games = {}
 
-@app.route('/')
-def index():
-    return render_template_string(open('static/index.html').read())  # Servir o HTML diretamente
+def new_game_state():
+    return {
+        'board': [' ' for _ in range(9)],
+        'current_player': 'X',
+        'winner': None,
+        'draw': False,
+    }
 
-@app.route('/move', methods=['POST'])
-def make_move():
-    data = request.get_json()
-    position = data.get('position')
-    player = data.get('player')
-
-    if game_state['board'][position] == ' ' and (game_state['winner'] is None and not game_state['draw']):
-        game_state['board'][position] = player
-        if check_winner():
-            game_state['winner'] = player
-        elif ' ' not in game_state['board']:
-            game_state['draw'] = True
-        else:
-            switch_player()
-        return jsonify(game_state)
-    else:
-        return jsonify({'error': 'Movimento inválido ou jogo já terminou.'}), 400
-
-@app.route('/status', methods=['GET'])
-def game_status():
-    return jsonify(game_state)
-
-@app.route('/reset', methods=['POST'])
-def reset_game():
-    game_state['board'] = [' ' for _ in range(9)]
-    game_state['current_player'] = 'X'
-    game_state['winner'] = None
-    game_state['draw'] = False
-    return jsonify(game_state)
-
-def check_winner():
+def check_winner(game):
     win_conditions = [
         [0, 1, 2], [3, 4, 5], [6, 7, 8],
         [0, 3, 6], [1, 4, 7], [2, 5, 8],
         [0, 4, 8], [2, 4, 6]
     ]
     for condition in win_conditions:
-        if game_state['board'][condition[0]] == game_state['board'][condition[1]] == game_state['board'][condition[2]] != ' ':
+        if game['board'][condition[0]] == game['board'][condition[1]] == game['board'][condition[2]] != ' ':
+            game['winner'] = game['current_player']
             return True
+    if ' ' not in game['board']:
+        game['draw'] = True
+        return True
     return False
 
-def switch_player():
-    game_state['current_player'] = 'O' if game_state['current_player'] == 'X' else 'X'
+def switch_player(game):
+    game['current_player'] = 'O' if game['current_player'] == 'X' else 'X'
+
+@app.route('/')
+def index():
+    return send_from_directory('static', 'index.html')
+
+@app.route('/game/new', methods=['POST'])
+def create_game():
+    game_id = str(uuid.uuid4())
+    games[game_id] = new_game_state()
+    return jsonify({'game_id': game_id})
+
+@app.route('/game/<game_id>/move', methods=['POST'])
+def make_move(game_id):
+    if game_id not in games:
+        abort(404, description="Game not found")
+    
+    game = games[game_id]
+    data = request.get_json()
+    position = data.get('position')
+    player = data.get('player')
+
+    if player != game['current_player']:
+        return jsonify({'error': 'Not your turn'}), 400
+
+    if position is None or game['board'][position] != ' ' or game['winner'] or game['draw']:
+        return jsonify({'error': 'Invalid move'}), 400
+    
+    game['board'][position] = player
+    
+    if not check_winner(game):
+        switch_player(game)
+
+    return jsonify(game)
+
+@app.route('/game/<game_id>/status', methods=['GET'])
+def game_status(game_id):
+    if game_id not in games:
+        abort(404, description="Game not found")
+    return jsonify(games[game_id])
+
+@app.route('/game/<game_id>/reset', methods=['POST'])
+def reset_game(game_id):
+    if game_id not in games:
+        abort(404, description="Game not found")
+    
+    games[game_id] = new_game_state()
+    return jsonify(games[game_id])
 
 if __name__ == '__main__':
     app.run(debug=True)
