@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jogo da Velha</title>
+    <style>
+        .grid-container {
+            display: grid;
+            grid-template-columns: auto auto auto;
+            gap: 10px;
+            padding: 10px;
+        }
+        .grid-item {
+            background-color: #f0f0f0;
+            border: 2px solid #444;
+            padding: 50px;
+            font-size: 30px;
+            text-align: center;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h2>Jogo da Velha</h2>
+    <div id="gameBoard" class="grid-container"></div>
+    <button onclick="resetGame()">Reiniciar Jogo</button>
+
+    <script>
+        const gameBoard = document.getElementById('gameBoard');
+        let currentPlayer = 'X';
+
+        function makeMove(position) {
+            fetch('/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ position, player: currentPlayer })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    updateBoard(data.board);
+                    currentPlayer = data.current_player;
+                    if (data.winner) {
+                        alert(`Jogador ${data.winner} venceu!`);
+                    } else if (data.draw) {
+                        alert('Empate!');
+                    }
+                }
+            });
+        }
+
+        function resetGame() {
+            fetch('/reset', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                updateBoard(data.board);
+                currentPlayer = 'X'; // Resetar sempre para X começar
+            });
+        }
+
+        function updateBoard(board) {
+            gameBoard.innerHTML = '';
+            board.forEach((cell, index) => {
+                const cellElement = document.createElement('div');
+                cellElement.className = 'grid-item';
+                cellElement.textContent = cell;
+                cellElement.onclick = () => makeMove(index);
+                gameBoard.appendChild(cellElement);
+            });
+        }
+
+        resetGame();
+    </script>
+</body>
+</html>
