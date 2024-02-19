@@ -5,74 +5,33 @@
     <title>Tic-Tac-Toe Game</title>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <style>
-        .board {
-            display: grid;
-            grid-template-columns: repeat(3, 100px);
-            gap: 5px;
-            margin: 20px auto;
-        }
-        .cell {
-            width: 100px;
-            height: 100px;
-            background-color: #f0f0f0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 36px;
-            cursor: pointer;
-            border: 1px solid #ddd;
-        }
-        #status {
-            text-align: center;
-            margin-top: 20px;
-        }
+        .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; margin: 20px; }
+        .cell { width: 100px; height: 100px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 36px; cursor: pointer; }
     </style>
 </head>
 <body>
     <h2>Tic-Tac-Toe</h2>
-    <div id="status">Waiting for players...</div>
     <div class="board" id="board"></div>
 
     <script>
-        const socket = io();
+        const socket = io.connect('http://' + document.domain + ':' + location.port);
+        const boardElement = document.getElementById('board');
 
-        socket.on('connect', () => {
-            console.log('Connected to the WebSocket server');
-        });
+        for (let i = 0; i < 9; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.addEventListener('click', () => {
+                socket.emit('make_move', {position: i, player: 'X'}); // Simplificação: sempre envia 'X'
+            });
+            boardElement.appendChild(cell);
+        }
 
         socket.on('game_state', (gameState) => {
-            updateBoard(gameState);
-        });
-
-        function updateBoard(gameState) {
-            const boardElement = document.getElementById('board');
-            boardElement.innerHTML = ''; // Clear the board before updating
-
-            gameState.board.forEach((cell, index) => {
-                const cellElement = document.createElement('div');
-                cellElement.className = 'cell';
-                cellElement.innerText = cell;
-                cellElement.onclick = () => makeMove(index);
-                boardElement.appendChild(cellElement);
+            const cells = document.querySelectorAll('.cell');
+            gameState.board.forEach((mark, index) => {
+                cells[index].innerText = mark;
             });
-
-            const statusElement = document.getElementById('status');
-            if (gameState.winner) {
-                statusElement.innerText = `Winner: ${gameState.winner}`;
-            } else if (gameState.draw) {
-                statusElement.innerText = "It's a draw!";
-            } else {
-                statusElement.innerText = `Current player: ${gameState.current_player}`;
-            }
-        }
-
-        function makeMove(index) {
-            socket.emit('make_move', { position: index, player: currentPlayer });
-        }
-
-        // Assume currentPlayer is determined beforehand or through another interaction
-        // This needs to be set for each client to 'X' or 'O'
-        let currentPlayer = 'X'; // This should be dynamically set based on the player's choice or server assignment
+        });
     </script>
 </body>
 </html>

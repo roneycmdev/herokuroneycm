@@ -1,8 +1,9 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
+import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
+app.config['SECRET_KEY'] = 'secret_key'
 socketio = SocketIO(app)
 
 # Estrutura para armazenar o estado do jogo
@@ -37,7 +38,7 @@ def handle_make_move(json):
     index = json['position']
     player = json['player']
     
-    if game_state['board'][index] == ' ' and (game_state['winner'] is None and not game_state['draw']):
+    if game_state['board'][index] == ' ' and game_state['winner'] is None:
         game_state['board'][index] = player
         winner = check_winner()
         if winner:
