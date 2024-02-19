@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tic-Tac-Toe Game</title>
+    <title>Tic-Tac-Toe</title>
     <style>
         .board {
             display: grid;
             grid-template-columns: repeat(3, 100px);
-            gap: 5px;
+            gap: 10px;
             margin: 20px auto;
         }
         .cell {
@@ -24,107 +24,68 @@
 </head>
 <body>
     <h2>Tic-Tac-Toe</h2>
-    <div>
-        <button id="newGameBtn">New Game</button>
-        <input id="gameIdInput" type="text" placeholder="Game ID">
-        <button id="joinGameBtn">Join Game</button>
+    Game ID: <input type="text" id="gameId">
+    <button onclick="createGame()">New Game</button>
+    <button onclick="fetchGameStatus()">Join Game</button>
+    <div id="currentPlayer">Current Player: X</div>
+    <div class="board">
+        <div class="cell" onclick="makeMove(0)"></div>
+        <div class="cell" onclick="makeMove(1)"></div>
+        <div class="cell" onclick="makeMove(2)"></div>
+        <div class="cell" onclick="makeMove(3)"></div>
+        <div class="cell" onclick="makeMove(4)"></div>
+        <div class="cell" onclick="makeMove(5)"></div>
+        <div class="cell" onclick="makeMove(6)"></div>
+        <div class="cell" onclick="makeMove(7)"></div>
+        <div class="cell" onclick="makeMove(8)"></div>
     </div>
-    <div>Your Role: <span id="playerRole">None</span></div>
-    <div class="board" id="board"></div>
-
     <script>
-        const newGameBtn = document.getElementById('newGameBtn');
-        const joinGameBtn = document.getElementById('joinGameBtn');
-        const gameIdInput = document.getElementById('gameIdInput');
-        const playerRoleDisplay = document.getElementById('playerRole');
-        let playerRole = '';
-        let currentGameId = '';
-
-        newGameBtn.addEventListener('click', createGame);
-        joinGameBtn.addEventListener('click', joinGame);
+        let currentPlayer = 'X';
 
         function createGame() {
             fetch('/game/new', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
-                    currentGameId = data.game_id;
-                    gameIdInput.value = currentGameId;
-                    alert('New game created. Share the Game ID with your friend.');
-                    initializeBoard();
+                    document.getElementById('gameId').value = data.game_id;
+                    alert('Game created. Share the Game ID with a friend.');
                 });
-        }
-
-        function joinGame() {
-            const gameId = gameIdInput.value.trim();
-            if (gameId) {
-                currentGameId = gameId;
-                fetch(`/game/${currentGameId}/join`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ player_id: `player-${Date.now()}` }) // Use a more sophisticated ID in production
-                })
-                .then(response => response.json())
-                .then(data => {
-                    playerRole = data.role;
-                    playerRoleDisplay.textContent = playerRole;
-                    alert(`Joined game as ${playerRole}.`);
-                    initializeBoard();
-                    fetchGameStatus();
-                });
-            } else {
-                alert('Please enter a Game ID to join.');
-            }
-        }
-
-        function initializeBoard() {
-            const boardElement = document.getElementById('board');
-            boardElement.innerHTML = ''; // Clear the board
-            for (let i = 0; i < 9; i++) {
-                const cell = document.createElement('div');
-                cell.classList.add('cell');
-                cell.addEventListener('click', () => makeMove(i));
-                boardElement.appendChild(cell);
-            }
         }
 
         function makeMove(position) {
-            if (!currentGameId || !playerRole) return;
-            fetch(`/game/${currentGameId}/move`, {
+            const gameId = document.getElementById('gameId').value;
+            if (!gameId) {
+                alert('Please enter a Game ID.');
+                return;
+            }
+            fetch(`/game/${gameId}/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ position, player_id: `player-${Date.now()}` }) // Match this ID with joinGame
+                body: JSON.stringify({ position, player: currentPlayer })
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    updateBoard(data);
+                updateBoard(data);
+                if (data.winner) {
+                    alert(data.winner === 'Draw' ? 'The game is a draw!' : `Player ${data.winner} wins!`);
+                    location.reload(); // Reload the page to reset the game
                 }
+                currentPlayer = currentPlayer === 'X' ? 'O' : 'X'; // Switch turns
+                document.getElementById('currentPlayer').innerText = `Current Player: ${currentPlayer}`;
             });
         }
 
         function fetchGameStatus() {
-            fetch(`/game/${currentGameId}/status`)
+            const gameId = document.getElementById('gameId').value;
+            fetch(`/game/${gameId}`)
                 .then(response => response.json())
-                .then(data => {
-                    updateBoard(data);
-                    if (!data.winner && !data.draw) {
-                        setTimeout(fetchGameStatus, 2000); // Poll game status every 2 seconds
-                    }
-                });
+                .then(data => updateBoard(data));
         }
 
         function updateBoard(game) {
-            const boardElement = document.getElementById('board');
+            const cells = document.querySelectorAll('.cell');
             game.board.forEach((cell, index) => {
-                boardElement.children[index].textContent = cell;
+                cells[index].innerText = cell;
             });
-            if (game.winner) {
-                alert(`Game over. ${game.winner} wins!`);
-            } else if (game.draw) {
-                alert("Game over. It's a draw!");
-            }
         }
     </script>
 </body>
