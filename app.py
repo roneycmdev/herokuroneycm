@@ -1,21 +1,20 @@
-from flask import Flask, jsonify, request, send_from_directory, abort
-import os
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret!'
+socketio = SocketIO(app)
 
-games = {}
-game_id_counter = 1
+# Estrutura para armazenar o estado do jogo
+game_state = {
+    'board': [' ' for _ in range(9)],
+    'current_player': 'X',
+    'winner': None,
+    'draw': False,
+}
 
-def new_game_state():
-    return {
-        'board': [' ' for _ in range(9)],
-        'players': {'X': None, 'O': None},
-        'current_player': 'X',
-        'winner': None,
-        'draw': False,
-    }
-
-def check_winner(board):
+def check_winner():
+    board = game_state['board']
     win_conditions = [
         (0, 1, 2), (3, 4, 5), (6, 7, 8),
         (0, 3, 6), (1, 4, 7), (2, 5, 8),
@@ -28,59 +27,24 @@ def check_winner(board):
         return 'Draw'
     return None
 
-@app.route('/', methods=['GET'])
+@app.route('/')
 def index():
-    return send_from_directory(app.static_folder, 'index.html')
+    return render_template('index.html')
 
-@app.route('/game/new', methods=['POST'])
-def create_game():
-    global game_id_counter
-    game_id = str(game_id_counter)
-    games[game_id] = new_game_state()
-    game_id_counter += 1
-    return jsonify({'game_id': game_id})
-
-@app.route('/game/<game_id>/join', methods=['POST'])
-def join_game(game_id):
-    game = games.get(game_id)
-    if not game:
-        abort(404, "Game not found.")
-    player_role = request.json.get('role')
-    if player_role in game['players'] and game['players'][player_role] is None:
-        game['players'][player_role] = request.remote_addr  # Use remote_addr as a simple player identifier
-        return jsonify({'role': player_role})
-    else:
-        abort(400, "Invalid request or role already taken.")
-
-@app.route('/game/<game_id>/move', methods=['POST'])
-def make_move(game_id):
-    game = games.get(game_id)
-    if not game:
-        abort(404, "Game not found.")
-    if game['winner'] or game['draw']:
-        return jsonify(game)  # Game over
+@socketio.on('make_move')
+def handle_make_move(json):
+    global game_state
+    index = json['position']
+    player = json['player']
     
-    player_role = request.json.get('role')
-    position = request.json.get('position')
-    if game['current_player'] != player_role or game['board'][position] != ' ':
-        abort(400, "Invalid move or not your turn.")
-    
-    game['board'][position] = player_role
-    winner = check_winner(game['board'])
-    if winner:
-        game['winner'] = winner if winner != 'Draw' else None
-        game['draw'] = True if winner == 'Draw' else False
-    else:
-        game['current_player'] = 'O' if game['current_player'] == 'X' else 'X'
-    return jsonify(game)
+    if game_state['board'][index] == ' ' and (game_state['winner'] is None and not game_state['draw']):
+        game_state['board'][index] = player
+        winner = check_winner()
+        if winner:
+            game_state['winner'] = winner
+        else:
+            game_state['current_player'] = 'O' if game_state['current_player'] == 'X' else 'X'
+        emit('game_state', game_state, broadcast=True)
 
-@app.route('/game/<game_id>', methods=['GET'])
-def game_status(game_id):
-    game = games.get(game_id)
-    if not game:
-        abort(404, "Game not found.")
-    return jsonify(game)
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+if __name__ == '__main__':
+    socketio.run(app, debug=True)
