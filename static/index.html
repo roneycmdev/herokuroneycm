@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tic-Tac-Toe</title>
+    <title>Tic-Tac-Toe Game</title>
     <style>
         .board {
             display: grid;
@@ -26,66 +26,92 @@
     <h2>Tic-Tac-Toe</h2>
     Game ID: <input type="text" id="gameId">
     <button onclick="createGame()">New Game</button>
-    <button onclick="fetchGameStatus()">Join Game</button>
-    <div id="currentPlayer">Current Player: X</div>
-    <div class="board">
-        <div class="cell" onclick="makeMove(0)"></div>
-        <div class="cell" onclick="makeMove(1)"></div>
-        <div class="cell" onclick="makeMove(2)"></div>
-        <div class="cell" onclick="makeMove(3)"></div>
-        <div class="cell" onclick="makeMove(4)"></div>
-        <div class="cell" onclick="makeMove(5)"></div>
-        <div class="cell" onclick="makeMove(6)"></div>
-        <div class="cell" onclick="makeMove(7)"></div>
-        <div class="cell" onclick="makeMove(8)"></div>
-    </div>
+    <button onclick="joinGame()">Join Game</button>
+    <div>Your Role: <span id="playerRole">None</span></div>
+    <div class="board" id="board"></div>
+
     <script>
-        let currentPlayer = 'X';
+        let currentGameId;
+        let playerRole;
+        const boardElement = document.getElementById('board');
+        const playerRoleDisplay = document.getElementById('playerRole');
 
         function createGame() {
             fetch('/game/new', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
-                    document.getElementById('gameId').value = data.game_id;
-                    alert('Game created. Share the Game ID with a friend.');
+                    currentGameId = data.game_id;
+                    document.getElementById('gameId').value = currentGameId;
+                    playerRole = 'X'; // Creator is always 'X'
+                    playerRoleDisplay.textContent = playerRole;
+                    alert('New game created. Share the Game ID with your friend.');
+                    initializeBoard();
+                    pollGameState();
                 });
         }
 
-        function makeMove(position) {
-            const gameId = document.getElementById('gameId').value;
-            if (!gameId) {
+        function joinGame() {
+            const gameId = document.getElementById('gameId').value.trim();
+            if (gameId) {
+                currentGameId = gameId;
+                playerRole = 'O'; // Joiner is always 'O'
+                playerRoleDisplay.textContent = playerRole;
+                alert(`Joined game as ${playerRole}.`);
+                initializeBoard();
+                pollGameState();
+            } else {
                 alert('Please enter a Game ID.');
-                return;
             }
-            fetch(`/game/${gameId}/move`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ position, player: currentPlayer })
-            })
-            .then(response => response.json())
-            .then(data => {
-                updateBoard(data);
-                if (data.winner) {
-                    alert(data.winner === 'Draw' ? 'The game is a draw!' : `Player ${data.winner} wins!`);
-                    location.reload(); // Reload the page to reset the game
-                }
-                currentPlayer = currentPlayer === 'X' ? 'O' : 'X'; // Switch turns
-                document.getElementById('currentPlayer').innerText = `Current Player: ${currentPlayer}`;
-            });
         }
 
-        function fetchGameStatus() {
-            const gameId = document.getElementById('gameId').value;
-            fetch(`/game/${gameId}`)
-                .then(response => response.json())
-                .then(data => updateBoard(data));
+        function initializeBoard() {
+            boardElement.innerHTML = ''; // Clear the board
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.addEventListener('click', () => makeMove(i));
+                boardElement.appendChild(cell);
+            }
+        }
+
+        function makeMove(position) {
+            if (!currentGameId || playerRole !== document.getElementById('currentPlayer').innerText.split(': ')[1]) {
+                alert('Not your turn or join a game first!');
+                return;
+            }
+            fetch(`/game/${currentGameId}/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ position, player: playerRole })
+            })
+            .then(response => response.json())
+            .then(updateBoard);
+        }
+
+        function pollGameState() {
+            if (!currentGameId) return;
+            setTimeout(() => {
+                fetch(`/game/${currentGameId}`)
+                    .then(response => response.json())
+                    .then(gameState => {
+                        updateBoard(gameState);
+                        if (!gameState.winner && !gameState.draw) {
+                            pollGameState(); // Continue polling if game is not over
+                        }
+                    });
+            }, 2000); // Poll every 2 seconds
         }
 
         function updateBoard(game) {
-            const cells = document.querySelectorAll('.cell');
             game.board.forEach((cell, index) => {
-                cells[index].innerText = cell;
+                boardElement.children[index].innerText = cell;
             });
+            document.getElementById('currentPlayer').innerText = `Current Player: ${game.current_player}`;
+            if (game.winner) {
+                alert(`Game over. ${game.winner} wins!`);
+            } else if (game.draw) {
+                alert("Game over. It's a draw!");
+            }
         }
     </script>
 </body>
