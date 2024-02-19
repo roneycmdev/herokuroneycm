@@ -5,33 +5,63 @@
     <title>Tic-Tac-Toe Game</title>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <style>
-        .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; margin: 20px; }
+        .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 5px; margin: 20px auto; }
         .cell { width: 100px; height: 100px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 36px; cursor: pointer; }
     </style>
 </head>
 <body>
     <h2>Tic-Tac-Toe</h2>
-    <div class="board" id="board"></div>
+    <div id="board"></div>
 
     <script>
-        const socket = io.connect('http://' + document.domain + ':' + location.port);
-        const boardElement = document.getElementById('board');
+        const socket = io();
+        let currentPlayer = '';
 
-        for (let i = 0; i < 9; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
-            cell.addEventListener('click', () => {
-                socket.emit('make_move', {position: i, player: 'X'}); // Simplificação: sempre envia 'X'
-            });
-            boardElement.appendChild(cell);
+        socket.on('connect', () => {
+            socket.emit('join_game');
+        });
+
+        socket.on('player_joined', (data) => {
+            currentPlayer = data.player;
+            alert(`You are Player ${currentPlayer}`);
+        });
+
+        socket.on('start_game', (state) => {
+            initializeBoard();
+        });
+
+        socket.on('update_game', (gameState) => {
+            updateBoard(gameState);
+            if (gameState.winner) {
+                alert(gameState.winner === 'Draw' ? 'The game is a draw!' : `Player ${gameState.winner} wins!`);
+            }
+        });
+
+        function initializeBoard() {
+            const boardElement = document.getElementById('board');
+            boardElement.innerHTML = ''; // Clear the board
+            for (let i = 0; i < 9; i++) {
+                const cellElement = document.createElement('div');
+                cellElement.className = 'cell';
+                cellElement.addEventListener('click', () => makeMove(i));
+                boardElement.appendChild(cellElement);
+            }
         }
 
-        socket.on('game_state', (gameState) => {
+        function makeMove(position) {
+            if (currentPlayer === game_state.current_player) {
+                socket.emit('make_move', {position: position, player: currentPlayer});
+            } else {
+                alert("It's not your turn!");
+            }
+        }
+
+        function updateBoard(gameState) {
             const cells = document.querySelectorAll('.cell');
             gameState.board.forEach((mark, index) => {
                 cells[index].innerText = mark;
             });
-        });
+        }
     </script>
 </body>
 </html>
