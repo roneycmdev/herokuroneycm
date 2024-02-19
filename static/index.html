@@ -2,59 +2,128 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tic-Tac-Toe</title>
+    <title>Tic-Tac-Toe Game</title>
     <style>
-        .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 5px; }
-        .cell { width: 100px; height: 100px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 36px; cursor: pointer; }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            gap: 5px;
+            margin: 20px auto;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            background-color: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <h2>Tic-Tac-Toe</h2>
-    <div id="gameIdDisplay"></div>
-    <button onclick="createGame()">New Game</button>
-    <div class="board">
-        <div class="cell" onclick="makeMove(0)"></div>
-        <div class="cell" onclick="makeMove(1)"></div>
-        <div class="cell" onclick="makeMove(2)"></div>
-        <div class="cell" onclick="makeMove(3)"></div>
-        <div class="cell" onclick="makeMove(4)"></div>
-        <div class="cell" onclick="makeMove(5)"></div>
-        <div class="cell" onclick="makeMove(6)"></div>
-        <div class="cell" onclick="makeMove(7)"></div>
-        <div class="cell" onclick="makeMove(8)"></div>
+    <div>
+        <button id="newGameBtn">New Game</button>
+        <input id="gameIdInput" type="text" placeholder="Game ID">
+        <button id="joinGameBtn">Join Game</button>
     </div>
+    <div>Your Role: <span id="playerRole">None</span></div>
+    <div class="board" id="board"></div>
+
     <script>
-        let currentGameId;
+        const newGameBtn = document.getElementById('newGameBtn');
+        const joinGameBtn = document.getElementById('joinGameBtn');
+        const gameIdInput = document.getElementById('gameIdInput');
+        const playerRoleDisplay = document.getElementById('playerRole');
+        let playerRole = '';
+        let currentGameId = '';
+
+        newGameBtn.addEventListener('click', createGame);
+        joinGameBtn.addEventListener('click', joinGame);
 
         function createGame() {
             fetch('/game/new', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
                     currentGameId = data.game_id;
-                    document.getElementById('gameIdDisplay').innerText = 'Game ID: ' + currentGameId;
+                    gameIdInput.value = currentGameId;
+                    alert('New game created. Share the Game ID with your friend.');
+                    initializeBoard();
                 });
         }
 
+        function joinGame() {
+            const gameId = gameIdInput.value.trim();
+            if (gameId) {
+                currentGameId = gameId;
+                fetch(`/game/${currentGameId}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player_id: `player-${Date.now()}` }) // Use a more sophisticated ID in production
+                })
+                .then(response => response.json())
+                .then(data => {
+                    playerRole = data.role;
+                    playerRoleDisplay.textContent = playerRole;
+                    alert(`Joined game as ${playerRole}.`);
+                    initializeBoard();
+                    fetchGameStatus();
+                });
+            } else {
+                alert('Please enter a Game ID to join.');
+            }
+        }
+
+        function initializeBoard() {
+            const boardElement = document.getElementById('board');
+            boardElement.innerHTML = ''; // Clear the board
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.addEventListener('click', () => makeMove(i));
+                boardElement.appendChild(cell);
+            }
+        }
+
         function makeMove(position) {
-            if (!currentGameId) return alert('Create a game first!');
+            if (!currentGameId || !playerRole) return;
             fetch(`/game/${currentGameId}/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ position })
+                body: JSON.stringify({ position, player_id: `player-${Date.now()}` }) // Match this ID with joinGame
             })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    updateBoard(data);
+                }
+            });
+        }
+
+        function fetchGameStatus() {
+            fetch(`/game/${currentGameId}/status`)
                 .then(response => response.json())
-                .then(updateBoard);
+                .then(data => {
+                    updateBoard(data);
+                    if (!data.winner && !data.draw) {
+                        setTimeout(fetchGameStatus, 2000); // Poll game status every 2 seconds
+                    }
+                });
         }
 
         function updateBoard(game) {
-            const board = document.querySelector('.board');
+            const boardElement = document.getElementById('board');
             game.board.forEach((cell, index) => {
-                board.children[index].innerText = cell;
+                boardElement.children[index].textContent = cell;
             });
             if (game.winner) {
-                alert(`Winner is ${game.winner}!`);
+                alert(`Game over. ${game.winner} wins!`);
             } else if (game.draw) {
-                alert("It's a draw!");
+                alert("Game over. It's a draw!");
             }
         }
     </script>
