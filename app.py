@@ -1,62 +1,57 @@
-from flask import Flask, render_template
-from flask_socketio import SocketIO, emit
+from flask import Flask, render_template, request, jsonify, session
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
-socketio = SocketIO(app)
+app.secret_key = 'uma_chave_secreta'
 
-game_state = {
-    'board': [' ' for _ in range(9)],
-    'current_player': 'X',
-    'players': [],
-    'game_active': False
-}
-
-def check_winner(board):
-    win_conditions = [
-        (0, 1, 2), (3, 4, 5), (6, 7, 8),
-        (0, 3, 6), (1, 4, 7), (2, 5, 8),
-        (0, 4, 8), (2, 4, 6)
-    ]
-    for a, b, c in win_conditions:
-        if board[a] == board[b] == board[c] and board[a] != ' ':
-            return board[a]
-    if ' ' not in board:
-        return 'Draw'
-    return None
+# Estado inicial do jogo
+def estado_inicial():
+    return {
+        'tabuleiro': [['', '', ''], ['', '', ''], ['', '', '']],
+        'turno': 'X',
+        'vencedor': None,
+        'jogadas': 0  # Contador de jogadas para verificar empate
+    }
 
 @app.route('/')
 def index():
+    session['jogo'] = estado_inicial()
     return render_template('index.html')
 
-@socketio.on('join_game')
-def handle_join_game():
-    if len(game_state['players']) < 2:
-        player_id = request.sid
-        game_state['players'].append(player_id)
-        player_role = 'X' if game_state['players'].index(player_id) == 0 else 'O'
-        emit('player_role', {'role': player_role, 'id': player_id})
-        if len(game_state['players']) == 2:
-            game_state['game_active'] = True
-            emit('game_start', game_state, broadcast=True)
-    else:
-        emit('game_full', "Game is already full.")
+@app.route('/jogar', methods=['POST'])
+def jogar():
+    dados = request.get_json()
+    linha = dados['linha']
+    coluna = dados['coluna']
+    jogo = session.get('jogo', estado_inicial())
 
-@socketio.on('make_move')
-def handle_make_move(data):
-    if not game_state['game_active']:
-        return
-    position = data['position']
-    player = data['player']
-    if game_state['board'][position] == ' ' and player == game_state['current_player']:
-        game_state['board'][position] = player
-        winner = check_winner(game_state['board'])
-        if winner:
-            game_state['game_active'] = False
-            emit('game_over', {'winner': winner}, broadcast=True)
+    # Verifica se a célula já está ocupada
+    if jogo['tabuleiro'][linha][coluna] == '':
+        jogo['tabuleiro'][linha][coluna] = jogo['turno']
+        jogo['jogadas'] += 1
+        # Verificar vencedor ou mudar turno
+        if verificar_vencedor(jogo['tabuleiro'], jogo['turno']):
+            jogo['vencedor'] = jogo['turno']
+        elif jogo['jogadas'] == 9:  # Verifica empate
+            jogo['vencedor'] = 'Empate'
         else:
-            game_state['current_player'] = 'O' if game_state['current_player'] == 'X' else 'X'
-        emit('update_board', game_state, broadcast=True)
+            jogo['turno'] = 'O' if jogo['turno'] == 'X' else 'X'
+        session['jogo'] = jogo
+    return jsonify(jogo)
+
+@app.route('/estado', methods=['GET'])
+def estado():
+    return jsonify(session.get('jogo', estado_inicial()))
+
+def verificar_vencedor(tabuleiro, turno):
+    # Verificar linhas, colunas e diagonais para o vencedor
+    for i in range(3):
+        if all([c == turno for c in tabuleiro[i]]) or all([tabuleiro[j][i] == turno for j in range(3)]):
+            return True
+    if tabuleiro[0][0] == turno and tabuleiro[1][1] == turno and tabuleiro[2][2] == turno:
+        return True
+    if tabuleiro[0][2] == turno and tabuleiro[1][1] == turno and tabuleiro[2][0] == turno:
+        return True
+    return False
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    app.run(debug=True)
