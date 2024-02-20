@@ -3,7 +3,7 @@ from uuid import uuid4
 
 app = Flask(__name__)
 app.secret_key = 'uma_chave_secreta'
-
+from flask_cors import CORS
 jogos = {}
 
 def estado_inicial():
