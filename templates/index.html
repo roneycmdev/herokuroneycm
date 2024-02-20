@@ -3,20 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <title>Jogo da Velha</title>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="static/styles.css">
 </head>
 <body>
-    <div id="tabuleiro" class="tabuleiro">
-        <table>
-            <!-- Gerando o tabuleiro com JavaScript -->
-        </table>
-    </div>
-    <script src="/static/script.js"></script>
-    <script>
-        // Quando o DOM estiver pronto, inicializa o tabuleiro
-        document.addEventListener('DOMContentLoaded', function(){
-            inicializarTabuleiro();
-        });
-    </script>
+    <h1>Jogo da Velha</h1>
+    <input type="text" id="idJogoEntrada" placeholder="ID do Jogo">
+    <button id="entrarJogoBtn">Entrar no Jogo</button>
+    <div id="tabuleiro" class="tabuleiro"></div>
+    <button id="novoJogoBtn">Novo Jogo</button>
+    <script src="static/script.js"></script>
 </body>
 </html>

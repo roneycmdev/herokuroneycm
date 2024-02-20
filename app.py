@@ -1,57 +1,72 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify
+from uuid import uuid4
 
 app = Flask(__name__)
 app.secret_key = 'uma_chave_secreta'
 
-# Estado inicial do jogo
+jogos = {}
+
 def estado_inicial():
     return {
-        'tabuleiro': [['', '', ''], ['', '', ''], ['', '', '']],
+        'tabuleiro': [['', '', ''] for _ in range(3)],
         'turno': 'X',
         'vencedor': None,
-        'jogadas': 0  # Contador de jogadas para verificar empate
+        'jogadas': 0
     }
+
+def verificar_vencedor(tabuleiro):
+    # Verifica linhas, colunas e diagonais
+    linhas_colunas = [tabuleiro[i][:] for i in range(3)] + [[tabuleiro[i][j] for i in range(3)] for j in range(3)]
+    diagonais = [[tabuleiro[i][i] for i in range(3)], [tabuleiro[i][2-i] for i in range(3)]]
+    
+    for linha in linhas_colunas + diagonais:
+        if len(set(linha)) == 1 and linha[0] != '':
+            return linha[0]
+    if all(tabuleiro[i][j] != '' for i in range(3) for j in range(3)):
+        return 'Empate'
+    return None
 
 @app.route('/')
 def index():
-    session['jogo'] = estado_inicial()
     return render_template('index.html')
+
+@app.route('/novo_jogo', methods=['GET'])
+def novo_jogo():
+    id_jogo = uuid4().hex
+    jogos[id_jogo] = estado_inicial()
+    return jsonify({'id_jogo': id_jogo})
 
 @app.route('/jogar', methods=['POST'])
 def jogar():
-    dados = request.get_json()
+    dados = request.json
+    id_jogo = dados['id_jogo']
     linha = dados['linha']
     coluna = dados['coluna']
-    jogo = session.get('jogo', estado_inicial())
+    jogo = jogos.get(id_jogo)
 
-    # Verifica se a célula já está ocupada
-    if jogo['tabuleiro'][linha][coluna] == '':
-        jogo['tabuleiro'][linha][coluna] = jogo['turno']
-        jogo['jogadas'] += 1
-        # Verificar vencedor ou mudar turno
-        if verificar_vencedor(jogo['tabuleiro'], jogo['turno']):
-            jogo['vencedor'] = jogo['turno']
-        elif jogo['jogadas'] == 9:  # Verifica empate
-            jogo['vencedor'] = 'Empate'
-        else:
-            jogo['turno'] = 'O' if jogo['turno'] == 'X' else 'X'
-        session['jogo'] = jogo
+    if not jogo or jogo['tabuleiro'][linha][coluna] or jogo['vencedor']:
+        return jsonify({'erro': 'Jogada inválida'}), 400
+
+    # Faz a jogada
+    jogo['tabuleiro'][linha][coluna] = jogo['turno']
+    jogo['jogadas'] += 1
+
+    # Verifica se há um vencedor
+    vencedor = verificar_vencedor(jogo['tabuleiro'])
+    if vencedor:
+        jogo['vencedor'] = vencedor
+    else:
+        # Alterna o turno
+        jogo['turno'] = 'O' if jogo['turno'] == 'X' else 'X'
+    
     return jsonify(jogo)
 
-@app.route('/estado', methods=['GET'])
-def estado():
-    return jsonify(session.get('jogo', estado_inicial()))
-
-def verificar_vencedor(tabuleiro, turno):
-    # Verificar linhas, colunas e diagonais para o vencedor
-    for i in range(3):
-        if all([c == turno for c in tabuleiro[i]]) or all([tabuleiro[j][i] == turno for j in range(3)]):
-            return True
-    if tabuleiro[0][0] == turno and tabuleiro[1][1] == turno and tabuleiro[2][2] == turno:
-        return True
-    if tabuleiro[0][2] == turno and tabuleiro[1][1] == turno and tabuleiro[2][0] == turno:
-        return True
-    return False
+@app.route('/estado/<id_jogo>', methods=['GET'])
+def estado(id_jogo):
+    jogo = jogos.get(id_jogo)
+    if not jogo:
+        return jsonify({'erro': 'Jogo não encontrado'}), 404
+    return jsonify(jogo)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
