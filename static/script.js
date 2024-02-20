@@ -85,7 +85,7 @@ function atualizarEstadoJogo() {
                 atualizarTabuleiro(data.tabuleiro);
             }
             if (!data.vencedor) {
-                setTimeout(atualizarEstadoJogo, 2000); // Atualiza o estado do jogo a cada 2 segundos
+                setTimeout(atualizarEstadoJogo, 500); // Atualiza o estado do jogo a cada 2 segundos
             } else if (data.vencedor !== 'Empate') {
                 alert(`Vencedor: ${data.vencedor}`);
             } else {
